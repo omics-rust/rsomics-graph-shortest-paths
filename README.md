@@ -32,6 +32,18 @@ rsomics-graph-shortest-paths --source A graph.el
 # Per-node maximum distance (node TAB eccentricity). Errors if disconnected.
 rsomics-graph-shortest-paths --eccentricity graph.el
 
+# Minimum eccentricity. Errors if disconnected.
+rsomics-graph-shortest-paths --radius graph.el
+
+# Nodes with eccentricity == radius (one label per line).
+rsomics-graph-shortest-paths --center graph.el
+
+# Nodes with eccentricity == diameter (one label per line).
+rsomics-graph-shortest-paths --periphery graph.el
+
+# Nodes minimising the total distance sum Σ_u d(v,u) (one label per line).
+rsomics-graph-shortest-paths --barycenter graph.el
+
 # JSON output (all metrics support --json)
 rsomics-graph-shortest-paths --diameter --json graph.el
 ```
@@ -40,14 +52,19 @@ rsomics-graph-shortest-paths --diameter --json graph.el
 
 BFS unweighted distances are integers, so:
 
-- `--diameter` and `--eccentricity` are **integer-exact**.
+- `--diameter`, `--eccentricity` and `--radius` are **integer-exact**.
+- `--center`, `--periphery` and `--barycenter` return **exact node sets**
+  (center = eccentricity == radius; periphery = eccentricity == diameter;
+  barycenter = argmin of the total distance sum Σ_u d(v,u)).
 - `--average` computes the exact integer sum Σ d(u,v), then divides once by
   n*(n-1) with a single IEEE-754 double division — **bit-exact** with networkx
   on IEEE-conformant hardware.
 - `--source` distances are **integer-exact** per node.
 
-Verified by 27 compat tests against frozen networkx 3.6.1 expectations
-including `to_bits()` float comparisons.
+Verified by compat tests against frozen networkx 3.6.1 expectations (including
+`to_bits()` float comparisons), plus independent set/integer checks of
+`center`/`periphery`/`radius`/`barycenter` against networkx on eight further
+connected graphs (0 differ).
 
 ## Performance
 
