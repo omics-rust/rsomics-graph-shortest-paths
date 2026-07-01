@@ -33,6 +33,22 @@ pub struct MetricFlags {
     /// Per-node maximum distance (node TAB eccentricity).
     #[arg(long)]
     pub eccentricity: bool,
+
+    /// Minimum eccentricity. Errors if disconnected.
+    #[arg(long)]
+    pub radius: bool,
+
+    /// Nodes with eccentricity equal to the radius (one label per line).
+    #[arg(long)]
+    pub center: bool,
+
+    /// Nodes with eccentricity equal to the diameter (one label per line).
+    #[arg(long)]
+    pub periphery: bool,
+
+    /// Nodes minimising total distance sum Σ_u d(v,u) (one label per line).
+    #[arg(long)]
+    pub barycenter: bool,
 }
 
 /// Shortest-path metrics for undirected graphs.
@@ -43,8 +59,9 @@ pub struct MetricFlags {
 /// graph. Only nodes appearing as endpoints exist in the graph.
 ///
 /// BFS integer distances are exact. `--average` uses one IEEE-754 division on
-/// the integer sum — bit-exact with networkx. `--diameter` and `--eccentricity`
-/// are integer-exact.
+/// the integer sum — bit-exact with networkx. `--diameter`, `--radius`, and
+/// `--eccentricity` are integer-exact. `--center`, `--periphery`, and
+/// `--barycenter` are value-exact with networkx 3.6.1.
 #[derive(Parser, Debug)]
 #[command(name = "rsomics-graph-shortest-paths", version, about, long_about = None)]
 pub struct Cli {
@@ -63,9 +80,13 @@ pub struct Cli {
 #[serde(untagged)]
 enum Out {
     Diameter { diameter: u32 },
+    Radius { radius: u32 },
     Average { average: f64 },
     Source { distances: Vec<SourceRow> },
     Eccentricity { eccentricities: Vec<EccRow> },
+    Center { center: Vec<String> },
+    Periphery { periphery: Vec<String> },
+    Barycenter { barycenter: Vec<String> },
 }
 
 #[derive(Serialize)]
@@ -96,6 +117,14 @@ impl Cli {
                 println!("{d}");
             }
             return Ok(Out::Diameter { diameter: d });
+        }
+
+        if self.metric.radius {
+            let r = bfs::radius(&g).map_err(RsomicsError::InvalidInput)?;
+            if !common.json {
+                println!("{r}");
+            }
+            return Ok(Out::Radius { radius: r });
         }
 
         if self.metric.average {
@@ -133,6 +162,48 @@ impl Cli {
                 w.flush().map_err(RsomicsError::Io)?;
             }
             return Ok(Out::Source { distances: rows });
+        }
+
+        if self.metric.center {
+            let ids = bfs::center(&g).map_err(RsomicsError::InvalidInput)?;
+            let labels: Vec<String> = ids.iter().map(|&i| g.labels[i as usize].clone()).collect();
+            if !common.json {
+                let stdout = std::io::stdout().lock();
+                let mut w = BufWriter::new(stdout);
+                for l in &labels {
+                    writeln!(w, "{l}").map_err(RsomicsError::Io)?;
+                }
+                w.flush().map_err(RsomicsError::Io)?;
+            }
+            return Ok(Out::Center { center: labels });
+        }
+
+        if self.metric.periphery {
+            let ids = bfs::periphery(&g).map_err(RsomicsError::InvalidInput)?;
+            let labels: Vec<String> = ids.iter().map(|&i| g.labels[i as usize].clone()).collect();
+            if !common.json {
+                let stdout = std::io::stdout().lock();
+                let mut w = BufWriter::new(stdout);
+                for l in &labels {
+                    writeln!(w, "{l}").map_err(RsomicsError::Io)?;
+                }
+                w.flush().map_err(RsomicsError::Io)?;
+            }
+            return Ok(Out::Periphery { periphery: labels });
+        }
+
+        if self.metric.barycenter {
+            let ids = bfs::barycenter(&g).map_err(RsomicsError::InvalidInput)?;
+            let labels: Vec<String> = ids.iter().map(|&i| g.labels[i as usize].clone()).collect();
+            if !common.json {
+                let stdout = std::io::stdout().lock();
+                let mut w = BufWriter::new(stdout);
+                for l in &labels {
+                    writeln!(w, "{l}").map_err(RsomicsError::Io)?;
+                }
+                w.flush().map_err(RsomicsError::Io)?;
+            }
+            return Ok(Out::Barycenter { barycenter: labels });
         }
 
         // eccentricity

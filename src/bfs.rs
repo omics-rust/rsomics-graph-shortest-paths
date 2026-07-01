@@ -64,17 +64,111 @@ pub fn single_source(g: &Graph, src: u32) -> Vec<(u32, u32)> {
     out
 }
 
+/// Per-node eccentricity and total-distance-sum computed in one all-pairs BFS sweep.
+///
+/// Returns `(ecc, dist_sum)` where both vecs are indexed by internal node ID.
+/// Requires a connected graph (callers must verify before calling).
+pub fn eccentricities_and_sums(g: &Graph) -> (Vec<u32>, Vec<u64>) {
+    let n = g.n();
+    let mut ecc = vec![0u32; n];
+    let mut dist_sum = vec![0u64; n];
+    for src in 0..n as u32 {
+        let dist = bfs_distances(g, src);
+        let mut max_d = 0u32;
+        let mut sum = 0u64;
+        for &d in &dist {
+            if d != u32::MAX {
+                if d > max_d {
+                    max_d = d;
+                }
+                sum += d as u64;
+            }
+        }
+        ecc[src as usize] = max_d;
+        dist_sum[src as usize] = sum;
+    }
+    (ecc, dist_sum)
+}
+
 /// Eccentricity of each node: max BFS distance to any other node.
 ///
 /// Requires a connected graph; panics otherwise (callers check connectivity).
 pub fn eccentricities(g: &Graph) -> Vec<u32> {
-    let n = g.n();
-    let mut ecc = vec![0u32; n];
-    for src in 0..n as u32 {
-        let dist = bfs_distances(g, src);
-        ecc[src as usize] = dist.iter().copied().max().unwrap_or(0);
+    eccentricities_and_sums(g).0
+}
+
+/// Radius: minimum eccentricity. Errors if disconnected or empty.
+pub fn radius(g: &Graph) -> Result<u32, String> {
+    if g.n() == 0 {
+        return Err("radius is undefined for the null graph".into());
     }
-    ecc
+    if !is_connected(g) {
+        return Err("Found infinite path length because the graph is not connected".into());
+    }
+    Ok(eccentricities(g).into_iter().min().unwrap_or(0))
+}
+
+/// Center: nodes whose eccentricity equals the radius.
+///
+/// Returned in internal node order (insertion order), matching networkx iteration order
+/// on integer-labelled graphs. Errors if disconnected or empty.
+pub fn center(g: &Graph) -> Result<Vec<u32>, String> {
+    if g.n() == 0 {
+        return Err("center is undefined for the null graph".into());
+    }
+    if !is_connected(g) {
+        return Err("Found infinite path length because the graph is not connected".into());
+    }
+    let ecc = eccentricities(g);
+    let r = ecc.iter().copied().min().unwrap_or(0);
+    Ok(ecc
+        .iter()
+        .enumerate()
+        .filter_map(|(i, &e)| if e == r { Some(i as u32) } else { None })
+        .collect())
+}
+
+/// Periphery: nodes whose eccentricity equals the diameter.
+///
+/// Returned in internal node order, matching networkx. Errors if disconnected or empty.
+pub fn periphery(g: &Graph) -> Result<Vec<u32>, String> {
+    if g.n() == 0 {
+        return Err("periphery is undefined for the null graph".into());
+    }
+    if !is_connected(g) {
+        return Err("Found infinite path length because the graph is not connected".into());
+    }
+    let ecc = eccentricities(g);
+    let d = ecc.iter().copied().max().unwrap_or(0);
+    Ok(ecc
+        .iter()
+        .enumerate()
+        .filter_map(|(i, &e)| if e == d { Some(i as u32) } else { None })
+        .collect())
+}
+
+/// Barycenter: nodes minimising Σ_u d(v, u) (total distance sum).
+///
+/// Returned in internal node order, matching networkx. Errors if disconnected or empty
+/// (networkx raises NetworkXNoPath on disconnected graphs).
+pub fn barycenter(g: &Graph) -> Result<Vec<u32>, String> {
+    let n = g.n();
+    if n == 0 {
+        return Err("barycenter is undefined for the null graph".into());
+    }
+    if !is_connected(g) {
+        return Err(
+            "Input graph is disconnected, so every induced subgraph has infinite barycentricity."
+                .into(),
+        );
+    }
+    let (_, dist_sum) = eccentricities_and_sums(g);
+    let min_sum = dist_sum.iter().copied().min().unwrap_or(0);
+    Ok(dist_sum
+        .iter()
+        .enumerate()
+        .filter_map(|(i, &s)| if s == min_sum { Some(i as u32) } else { None })
+        .collect())
 }
 
 /// Diameter: maximum eccentricity.

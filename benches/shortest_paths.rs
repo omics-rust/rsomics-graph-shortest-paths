@@ -21,7 +21,49 @@ fn bench_gnm100(c: &mut Criterion) {
     c.bench_function("single_source_gnm100_from_0", |b| {
         b.iter(|| bfs::single_source(&g, 0));
     });
+
+    // New metrics — gnm100
+    c.bench_function("radius_gnm100", |b| {
+        b.iter(|| bfs::radius(&g).unwrap());
+    });
+
+    c.bench_function("center_gnm100", |b| {
+        b.iter(|| bfs::center(&g).unwrap());
+    });
+
+    c.bench_function("periphery_gnm100", |b| {
+        b.iter(|| bfs::periphery(&g).unwrap());
+    });
+
+    c.bench_function("barycenter_gnm100", |b| {
+        b.iter(|| bfs::barycenter(&g).unwrap());
+    });
 }
 
-criterion_group!(benches, bench_gnm100);
+fn bench_gnm300(c: &mut Criterion) {
+    let golden = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/gnm300_1500.el");
+    let g = io::read_edgelist(Some(&golden)).unwrap();
+
+    c.bench_function("center_gnm300", |b| {
+        b.iter(|| bfs::center(&g).unwrap());
+    });
+
+    c.bench_function("periphery_gnm300", |b| {
+        b.iter(|| bfs::periphery(&g).unwrap());
+    });
+
+    c.bench_function("barycenter_gnm300", |b| {
+        b.iter(|| bfs::barycenter(&g).unwrap());
+    });
+
+    c.bench_function("radius_gnm300", |b| {
+        b.iter(|| bfs::radius(&g).unwrap());
+    });
+
+    c.bench_function("eccentricities_gnm300", |b| {
+        b.iter(|| bfs::eccentricities(&g));
+    });
+}
+
+criterion_group!(benches, bench_gnm100, bench_gnm300);
 criterion_main!(benches);

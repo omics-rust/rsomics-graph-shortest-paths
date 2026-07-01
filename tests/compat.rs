@@ -344,3 +344,269 @@ fn selfloop_path_unaffected() {
         "diameter of path 0-1-2 should be 2"
     );
 }
+
+// ── helpers for list-output metrics (center / periphery / barycenter) ──────
+
+fn run_list(flag: &str, file: &str) -> Vec<String> {
+    let out = Command::new(bin())
+        .args([flag, golden(file).to_str().unwrap()])
+        .output()
+        .expect("binary failed to launch");
+    assert!(
+        out.status.success(),
+        "binary exited non-zero for {file} {flag}: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let s = String::from_utf8(out.stdout).unwrap();
+    let mut v: Vec<String> = s.lines().map(str::to_owned).collect();
+    v.sort();
+    v
+}
+
+fn run_scalar(flag: &str, file: &str) -> String {
+    run_ok(flag, file)
+}
+
+// ── radius ─────────────────────────────────────────────────────────────────
+// nx: path6→3, star5→1, cycle6→3, complete4→1, gnm100_300→4
+// petersen→2, grid2x5→3
+
+#[test]
+fn path6_radius() {
+    assert_eq!(run_scalar("--radius", "path6.el"), "3");
+}
+
+#[test]
+fn star5_radius() {
+    assert_eq!(run_scalar("--radius", "star5.el"), "1");
+}
+
+#[test]
+fn cycle6_radius() {
+    assert_eq!(run_scalar("--radius", "cycle6.el"), "3");
+}
+
+#[test]
+fn complete4_radius() {
+    assert_eq!(run_scalar("--radius", "complete4.el"), "1");
+}
+
+#[test]
+fn gnm100_radius() {
+    assert_eq!(run_scalar("--radius", "gnm100_300.el"), "4");
+}
+
+#[test]
+fn petersen_radius() {
+    assert_eq!(run_scalar("--radius", "petersen.el"), "2");
+}
+
+#[test]
+fn grid2x5_radius() {
+    assert_eq!(run_scalar("--radius", "grid2x5.el"), "3");
+}
+
+#[test]
+fn disconnected_radius_errors() {
+    run_expect_fail("--radius", "disconnected.el");
+}
+
+// ── center ─────────────────────────────────────────────────────────────────
+// nx (sorted set): path6→[2,3], star5→[0], cycle6→all6, complete4→all4
+// gnm100_300: 82 nodes (all ecc=4); petersen→all10; grid2x5→[2,7]
+
+#[test]
+fn path6_center() {
+    assert_eq!(run_list("--center", "path6.el"), vec!["2", "3"]);
+}
+
+#[test]
+fn star5_center() {
+    assert_eq!(run_list("--center", "star5.el"), vec!["0"]);
+}
+
+#[test]
+fn cycle6_center() {
+    // All 6 nodes have ecc=3=radius
+    let got = run_list("--center", "cycle6.el");
+    let expected: Vec<String> = vec!["0", "1", "2", "3", "4", "5"]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn complete4_center() {
+    let got = run_list("--center", "complete4.el");
+    let expected: Vec<String> = vec!["0", "1", "2", "3"]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn gnm100_center_count() {
+    // 82 nodes with ecc=4 (networkx 3.6.1 confirmed)
+    let got = run_list("--center", "gnm100_300.el");
+    assert_eq!(got.len(), 82, "gnm100_300 center should have 82 nodes");
+    // Periphery nodes (ecc=5) must NOT appear in center
+    for n in ["2", "10", "23", "32", "36", "37", "41", "49", "50"] {
+        assert!(!got.contains(&n.to_owned()), "periphery node {n} in center");
+    }
+}
+
+#[test]
+fn petersen_center() {
+    // All 10 nodes have ecc=2=radius
+    let got = run_list("--center", "petersen.el");
+    assert_eq!(got.len(), 10);
+}
+
+#[test]
+fn grid2x5_center() {
+    // ecc: 0→5, 1→4, 2→3, 3→4, 4→5, 5→5, 6→4, 7→3, 8→4, 9→5; radius=3
+    assert_eq!(run_list("--center", "grid2x5.el"), vec!["2", "7"]);
+}
+
+#[test]
+fn disconnected_center_errors() {
+    run_expect_fail("--center", "disconnected.el");
+}
+
+// ── periphery ──────────────────────────────────────────────────────────────
+// nx (sorted set): path6→[0,5], star5→[1,2,3,4], cycle6→all6, complete4→all4
+// gnm100_300: 18 nodes (ecc=5); petersen→all10; grid2x5→[0,4,5,9]
+
+#[test]
+fn path6_periphery() {
+    assert_eq!(run_list("--periphery", "path6.el"), vec!["0", "5"]);
+}
+
+#[test]
+fn star5_periphery() {
+    assert_eq!(
+        run_list("--periphery", "star5.el"),
+        vec!["1", "2", "3", "4"]
+    );
+}
+
+#[test]
+fn cycle6_periphery() {
+    let got = run_list("--periphery", "cycle6.el");
+    let expected: Vec<String> = vec!["0", "1", "2", "3", "4", "5"]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn complete4_periphery() {
+    let got = run_list("--periphery", "complete4.el");
+    let expected: Vec<String> = vec!["0", "1", "2", "3"]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn gnm100_periphery() {
+    // 18 nodes with ecc=5 (networkx 3.6.1 confirmed — same as eccentricity ecc=5 spot-check)
+    let got = run_list("--periphery", "gnm100_300.el");
+    assert_eq!(got.len(), 18, "gnm100_300 periphery should have 18 nodes");
+    for n in [
+        "2", "10", "23", "32", "36", "37", "41", "49", "50", "53", "61", "62", "63", "75", "79",
+        "88", "90", "99",
+    ] {
+        assert!(
+            got.contains(&n.to_owned()),
+            "node {n} should be in periphery"
+        );
+    }
+}
+
+#[test]
+fn petersen_periphery() {
+    // All 10 nodes have ecc=2=diameter
+    let got = run_list("--periphery", "petersen.el");
+    assert_eq!(got.len(), 10);
+}
+
+#[test]
+fn grid2x5_periphery() {
+    // ecc 5 nodes: 0,4,5,9
+    assert_eq!(
+        run_list("--periphery", "grid2x5.el"),
+        vec!["0", "4", "5", "9"]
+    );
+}
+
+#[test]
+fn disconnected_periphery_errors() {
+    run_expect_fail("--periphery", "disconnected.el");
+}
+
+// ── barycenter ─────────────────────────────────────────────────────────────
+// nx (sorted set): path6→[2,3] (dist_sum=9), star5→[0] (4), cycle6→all6 (9)
+// complete4→all4 (3), gnm100_300→[33] (228), petersen→all10 (15), grid2x5→[2,7] (17)
+
+#[test]
+fn path6_barycenter() {
+    // dist_sum node2=9, node3=9; all others higher
+    assert_eq!(run_list("--barycenter", "path6.el"), vec!["2", "3"]);
+}
+
+#[test]
+fn star5_barycenter() {
+    // center node 0 has dist_sum=4; leaves have dist_sum>4
+    assert_eq!(run_list("--barycenter", "star5.el"), vec!["0"]);
+}
+
+#[test]
+fn cycle6_barycenter() {
+    // All nodes equidistant (vertex-transitive), min_sum=9
+    let got = run_list("--barycenter", "cycle6.el");
+    let expected: Vec<String> = vec!["0", "1", "2", "3", "4", "5"]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn complete4_barycenter() {
+    // All nodes equidistant in K4, min_sum=3
+    let got = run_list("--barycenter", "complete4.el");
+    let expected: Vec<String> = vec!["0", "1", "2", "3"]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(got, expected);
+}
+
+#[test]
+fn gnm100_barycenter() {
+    // Only node 33 minimises dist_sum=228 (networkx 3.6.1 confirmed)
+    assert_eq!(run_list("--barycenter", "gnm100_300.el"), vec!["33"]);
+}
+
+#[test]
+fn petersen_barycenter() {
+    // Petersen is vertex-transitive: all 10 nodes share the minimum
+    let got = run_list("--barycenter", "petersen.el");
+    assert_eq!(got.len(), 10);
+}
+
+#[test]
+fn grid2x5_barycenter() {
+    // Nodes 2 and 7 minimise dist_sum=17
+    assert_eq!(run_list("--barycenter", "grid2x5.el"), vec!["2", "7"]);
+}
+
+#[test]
+fn disconnected_barycenter_errors() {
+    run_expect_fail("--barycenter", "disconnected.el");
+}
