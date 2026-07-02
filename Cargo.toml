@@ -1,6 +1,6 @@
 [package]
 name = "rsomics-graph-shortest-paths"
-version = "0.2.0"
+version = "0.2.1"
 description = "Shortest-path metrics for undirected graphs — value-exact networkx equivalent (diameter, radius, average, eccentricity, center, periphery, barycenter, single-source BFS)"
 edition = "2024"
 rust-version = "1.91"

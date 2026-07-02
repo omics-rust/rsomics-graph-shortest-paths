@@ -24,9 +24,10 @@ impl Graph {
 /// - Lines starting with `#` are comments (ignored).
 /// - Blank lines are ignored.
 /// - Each data line needs at least two whitespace-separated tokens; extras ignored.
-/// - Self-loops (`u u`) are dropped.
+/// - A self-loop (`u u`) registers node `u` but adds no distance edge — a node
+///   reachable only via a self-loop stays isolated, exactly like `nx.read_edgelist`.
 /// - Duplicate edges collapse to a simple graph.
-/// - Only nodes that appear as endpoints of non-self-loop edges exist in the graph.
+/// - Every node appearing on any line exists in the graph.
 pub fn read_edgelist(path: Option<&Path>) -> Result<Graph> {
     let reader: Box<dyn BufRead> = match path {
         None => Box::new(BufReader::new(std::io::stdin())),
@@ -56,12 +57,11 @@ pub fn read_edgelist(path: Option<&Path>) -> Result<Graph> {
             RsomicsError::InvalidInput(format!("line {lineno}: expected two node labels, got one"))
         })?;
 
+        let u = intern(&mut labels, &mut index, u_str);
+        let v = intern(&mut labels, &mut index, v_str);
         if u_str == v_str {
             continue;
         }
-
-        let u = intern(&mut labels, &mut index, u_str);
-        let v = intern(&mut labels, &mut index, v_str);
         raw_edges.push((u, v));
     }
 

@@ -55,8 +55,9 @@ pub struct MetricFlags {
 ///
 /// Reads an edge list (one `u v` per line, whitespace-separated) from a file
 /// argument or stdin (`-`). Comment lines starting with `#` and blank lines
-/// are ignored. Self-loops are dropped; duplicate edges collapse to a simple
-/// graph. Only nodes appearing as endpoints exist in the graph.
+/// are ignored. A self-loop registers its node but adds no distance edge (a
+/// self-loop-only node stays isolated); duplicate edges collapse to a simple
+/// graph. Every node appearing on any line exists in the graph.
 ///
 /// BFS integer distances are exact. `--average` uses one IEEE-754 division on
 /// the integer sum — bit-exact with networkx. `--diameter`, `--radius`, and

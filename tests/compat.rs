@@ -345,6 +345,62 @@ fn selfloop_path_unaffected() {
     );
 }
 
+// ── self-loop-only node stays isolated → disconnected ───────────────────────
+// golden selfloop_isolated.el: `a b` + `c c`. nx.read_edgelist keeps c as a
+// self-loop node, leaving it isolated. networkx 3.6.1: G.nodes()={a,b,c};
+// diameter/radius/average/eccentricity/center/periphery/barycenter all raise
+// (disconnected). single_source from a → {a:0,b:1}; from c → {c:0}.
+
+#[test]
+fn selfloop_isolated_diameter_errors() {
+    run_expect_fail("--diameter", "selfloop_isolated.el");
+}
+
+#[test]
+fn selfloop_isolated_radius_errors() {
+    run_expect_fail("--radius", "selfloop_isolated.el");
+}
+
+#[test]
+fn selfloop_isolated_average_errors() {
+    run_expect_fail("--average", "selfloop_isolated.el");
+}
+
+#[test]
+fn selfloop_isolated_eccentricity_errors() {
+    run_expect_fail("--eccentricity", "selfloop_isolated.el");
+}
+
+#[test]
+fn selfloop_isolated_center_errors() {
+    run_expect_fail("--center", "selfloop_isolated.el");
+}
+
+#[test]
+fn selfloop_isolated_periphery_errors() {
+    run_expect_fail("--periphery", "selfloop_isolated.el");
+}
+
+#[test]
+fn selfloop_isolated_barycenter_errors() {
+    run_expect_fail("--barycenter", "selfloop_isolated.el");
+}
+
+#[test]
+fn selfloop_isolated_source_from_a() {
+    let m = parse_table(&run_source("a", "selfloop_isolated.el"));
+    assert_eq!(m["a"], 0);
+    assert_eq!(m["b"], 1);
+    assert_eq!(m.len(), 2, "c is isolated, unreachable from a");
+}
+
+#[test]
+fn selfloop_isolated_source_from_c() {
+    let m = parse_table(&run_source("c", "selfloop_isolated.el"));
+    assert_eq!(m["c"], 0);
+    assert_eq!(m.len(), 1, "c reaches only itself");
+}
+
 // ── helpers for list-output metrics (center / periphery / barycenter) ──────
 
 fn run_list(flag: &str, file: &str) -> Vec<String> {
