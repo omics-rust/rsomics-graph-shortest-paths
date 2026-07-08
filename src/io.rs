@@ -21,7 +21,7 @@ impl Graph {
 
 /// Parse an undirected edge list, matching `nx.read_edgelist` conventions.
 ///
-/// - Lines starting with `#` are comments (ignored).
+/// - Text from the first `#` on a line onward is a comment and is stripped before tokenising.
 /// - Blank lines are ignored.
 /// - Each data line needs at least two whitespace-separated tokens; extras ignored.
 /// - A self-loop (`u u`) registers node `u` but adds no distance edge — a node
@@ -47,8 +47,9 @@ pub fn read_edgelist(path: Option<&Path>) -> Result<Graph> {
     for (lineno, line) in reader.lines().enumerate() {
         let lineno = lineno + 1;
         let line = line.map_err(RsomicsError::Io)?;
-        let t = line.trim();
-        if t.is_empty() || t.starts_with('#') {
+        // nx.read_edgelist truncates each line at the first `#` before tokenising.
+        let t = line.split('#').next().unwrap_or("").trim();
+        if t.is_empty() {
             continue;
         }
         let mut tokens = t.split_ascii_whitespace();
@@ -87,4 +88,40 @@ fn intern(labels: &mut Vec<String>, index: &mut HashMap<String, u32>, s: &str) -
     labels.push(s.to_owned());
     index.insert(s.to_owned(), id);
     id
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    fn parse_str(contents: &str) -> Graph {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("g.el");
+        let mut f = File::create(&p).unwrap();
+        f.write_all(contents.as_bytes()).unwrap();
+        drop(f);
+        read_edgelist(Some(&p)).unwrap()
+    }
+
+    #[test]
+    fn inline_hash_comment_matches_comment_free_graph() {
+        // An adjacent `#` ("1 2#c") must be stripped, not tokenised into a "2#c" node;
+        // a space-separated trailing comment and a full-line comment behave identically.
+        let with_comment = parse_str("0 1\n1 2#c\n2 3\n# full line\n1 3 # trailing\n");
+        let clean = parse_str("0 1\n1 2\n2 3\n1 3\n");
+
+        assert_eq!(with_comment.labels, clean.labels);
+        assert_eq!(with_comment.adj, clean.adj);
+    }
+
+    #[test]
+    fn inline_hash_creates_no_spurious_node() {
+        let g = parse_str("0 1\n1 2#c\n2 3\n");
+        assert_eq!(g.labels, vec!["0", "1", "2", "3"]);
+        assert!(
+            g.labels.iter().all(|l| !l.contains('#')),
+            "no label may retain a `#` fragment"
+        );
+    }
 }
